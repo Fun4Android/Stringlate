@@ -25,8 +25,11 @@ public interface StringsSource {
     // Should retrieve a list of all locales available for this source. Must be non-null
     List<String> getLocales();
 
-    // Returns all the available, non-default resources for the specified locale. Must be non-null
-    Resources getResources(final String locale);
+    // Returns all the names for available translated resources (since these are named). Must be non-null
+    List<String> getTranslatedResources(final String locale);
+
+    // Given the name of a translated resource, loads and returns its contents. Must be non-null
+    Resources getTranslatedResource(final String locale, final String name);
 
     // Returns all the names for available default resources (since these are named). Must be non-null
     List<String> getDefaultResources();
@@ -39,6 +42,10 @@ public interface StringsSource {
     // their strings.xml files. If this is the case this method should
     // return said XML, otherwise, it can return null.
     String getDefaultResourceXml(final String name);
+
+    // Similarly, if the source knows about the structure of the translated
+    // XML, return said XML, otherwise, it can return null.
+    String getTranslatedResourceXml(final String locale, final String name);
 
     // May return a File pointing to an existing icon for this source, or null
     File getIcon();

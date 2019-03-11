@@ -24,6 +24,7 @@ public class RepoSettings {
     private static final String KEY_PROJECT_WEB_URL = "project_homepage_url";
     private static final String KEY_LAST_LOCALE = "last_locale";
     private static final String KEY_REMOTE_PATHS = "remote_paths";
+    private static final String KEY_REMOTE_LOCALE_PATHS = "remote_locale_paths";
     private static final String KEY_ICON_PATH = "icon_path";
     private static final String KEY_SEARCH_FILTER = "search_filter";
     private static final String KEY_CREATED_ISSUES = "created_issues";
@@ -90,6 +91,43 @@ public class RepoSettings {
 
     public String getLastLocale() {
         return mSettings.optString(KEY_LAST_LOCALE, DEFAULT_LAST_LOCALE);
+    }
+
+    public HashMap<String, HashMap<String, String>> getRemoteLocalePaths() {
+        HashMap<String, HashMap<String, String>> map = new HashMap<>();
+        JSONObject json = mSettings.optJSONObject(KEY_REMOTE_LOCALE_PATHS);
+        if (json != null) {
+            try {
+                Iterator<String> keysItr = json.keys();
+                while (keysItr.hasNext()) {
+                    String key = keysItr.next();
+                    HashMap<String, String> localemap = new HashMap<>();
+                    JSONObject json2 = json.optJSONObject(key);
+                    if (json2 != null) {
+                        try {
+                            Iterator<String> keysItr2 = json2.keys();
+                            while (keysItr2.hasNext()) {
+                                String key2 = keysItr2.next();
+                                localemap.put(key2, json2.getString(key2));
+                            }
+                        } catch (JSONException ignored) {
+                        }
+                    }
+                    map.put(key, localemap);
+                }
+            } catch (JSONException ignored) {
+            }
+        }
+        return map;
+    }
+
+    public HashMap<String, String> getRemoteLocalePaths(String locale) {
+        HashMap<String, HashMap<String, String>> map = getRemoteLocalePaths();
+        HashMap<String, String> map2 = map.get(locale);
+        if (map2 == null) {
+            return new HashMap<>();
+        }
+        return map2;
     }
 
     public HashMap<String, String> getRemotePaths() {
@@ -186,6 +224,21 @@ public class RepoSettings {
         save();
     }
 
+    public void addRemoteLocalePath(String locale, String filename, String remotePath) {
+        try {
+            HashMap<String, HashMap<String, String>> map = getRemoteLocalePaths();
+            HashMap<String, String> localemap = map.get(locale);
+            if (localemap == null) {
+                localemap = new HashMap<>();
+            }
+            localemap.put(filename, remotePath);
+            map.put(locale, localemap);
+            mSettings.put(KEY_REMOTE_LOCALE_PATHS, new JSONObject(map));
+        } catch (JSONException ignored) {
+        }
+        save();
+    }
+
     public void addRemotePath(String filename, String remotePath) {
         try {
             HashMap<String, String> map = getRemotePaths();
@@ -194,6 +247,10 @@ public class RepoSettings {
         } catch (JSONException ignored) {
         }
         save();
+    }
+
+    public void clearRemoteLocalePaths() {
+        mSettings.remove(KEY_REMOTE_LOCALE_PATHS);
     }
 
     public void clearRemotePaths() {

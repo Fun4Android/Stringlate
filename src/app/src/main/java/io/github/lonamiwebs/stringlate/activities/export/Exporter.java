@@ -169,7 +169,9 @@ class Exporter {
                 for (Map.Entry<File, String> templateRemote :
                         originalRepo.getTemplateRemotePaths(locale).entrySet()) {
                     // Iterate over the local template files and the remote paths for this locale
-                    String content = originalRepo.applyTemplate(templateRemote.getKey(), locale);
+                    File template = templateRemote.getKey();
+                    File oldFile = originalRepo.getTranslatedResourcesFile(locale, template.getName());
+                    String content = originalRepo.applyTemplate(template, oldFile, locale);
                     if (!content.isEmpty()) {
                         remoteContents.put(templateRemote.getValue(), content);
                     }

@@ -91,6 +91,14 @@ public class RepoHandler implements Comparable<RepoHandler> {
         return new File(mRoot, locale + "/strings.xml");
     }
 
+    public File getTranslatedResourcesFile(final String locale, final String filename) {
+        if (locale == null)
+            throw new IllegalArgumentException("locale cannot be null");
+        if (filename == null)
+            throw new IllegalArgumentException("filename cannot be null");
+        return new File(mRoot, locale + "/original/" + filename);
+    }
+
     private File getDefaultResourcesFile(final String filename) {
         if (filename == null)
             throw new IllegalArgumentException("filename cannot be null");
@@ -102,14 +110,37 @@ public class RepoHandler implements Comparable<RepoHandler> {
     // a map somewhere else to store "strings%d.xml -> original-path.xml".
     private File getUniqueDefaultResourcesFile() {
         File result = getDefaultResourcesFile("strings.xml");
-        if (result.isFile()) {
-            int i = 2;
-            while (result.isFile()) {
-                result = getDefaultResourcesFile("strings" + i + ".xml");
-                i++;
-            }
+        int i = 2;
+        while (result.isFile()) {
+            result = getDefaultResourcesFile("strings" + i + ".xml");
+            i++;
         }
         return result;
+    }
+
+    private File getUniqueTranslatedResourcesFile(String locale) {
+        if (locale == null)
+            throw new IllegalArgumentException("locale cannot be null");
+
+        File result = getTranslatedResourcesFile(locale, "strings.xml");
+        int i = 2;
+        while (result.isFile()) {
+            result = getTranslatedResourcesFile(locale, "strings" + i + ".xml");
+            i++;
+        }
+
+        return result;
+    }
+
+    // Never returns null
+    public File[] getTranslatedResourcesFiles(String locale) {
+        File root = new File(mRoot, locale + "/original");
+        if (root.isDirectory()) {
+            File[] files = root.listFiles();
+            if (files != null)
+                return files;
+        }
+        return new File[0];
     }
 
     // Never returns null
@@ -283,7 +314,7 @@ public class RepoHandler implements Comparable<RepoHandler> {
         if (!source.setup(mSourceSettings, tmpWorkDir, desiredIconDpi, callback))
             return false;
 
-        callback.onUpdate(2, (0f / 3f));
+        callback.onUpdate(2, (0f / 4f));
 
         // Delete all the previous default resources since their
         // names might have changed, been removed, or some new added.
@@ -291,6 +322,12 @@ public class RepoHandler implements Comparable<RepoHandler> {
         for (File f : getDefaultResourcesFiles())
             if (!f.delete())
                 return false;
+
+        settings.clearRemoteLocalePaths();
+        for(String locale: source.getLocales())
+            for (File f : getTranslatedResourcesFiles(locale))
+                if (!f.delete())
+                    return false;
 
         for (String locale : source.getLocales()) {
             if (locale == null)
@@ -301,18 +338,51 @@ public class RepoHandler implements Comparable<RepoHandler> {
             Resources resources = loadResources(locale);
 
             // Add new translated tags without overwriting existing ones
-            for (ResTag rt : source.getResources(locale))
-                if (!resources.wasModified(rt.getId()))
-                    resources.addTag(rt);
+            for (String name : source.getTranslatedResources(locale))
+                for (ResTag rt : source.getTranslatedResource(locale, name))
+                    if (!resources.wasModified(rt.getId()))
+                        resources.addTag(rt);
 
             // Save the changes
             resources.save();
         }
 
-        callback.onUpdate(2, (1f / 3f));
+        callback.onUpdate(2, (1f / 4f));
 
-        // Default resources are treated specially, since their name matters. The name for
-        // non-default resources doesn't because it can be inferred from defaults' (for now).
+        for (String locale : source.getLocales()) {
+            for (String originalName : source.getTranslatedResources(locale)) {
+                boolean okay;
+                final File resourceFile = getUniqueTranslatedResourcesFile(locale);
+
+                final String xml = source.getTranslatedResourceXml(locale, originalName);
+                if (xml == null) {
+                    // We don't know how the original XML looked like, that's okay
+                    final Resources resources = Resources.fromFile(resourceFile);
+                    for (ResTag rt : source.getTranslatedResource(locale, originalName))
+                        resources.addTag(rt); // Copy the resources to the new local file
+
+                    okay = resources.save();
+                } else {
+                    okay = FileUtils.writeFile(resourceFile, xml);
+                }
+
+                if (okay) {
+                    // Save the map origin -> unique, since we access it only from the list of
+                    // source locale
+                    String name = new File(originalName).getName();
+                    settings.addRemoteLocalePath(locale, name, resourceFile.getName());
+                } else {
+                    // Something went wrong, either saving, cleaning the XML or it has no strings
+                    // Clean up the ifle we may have made, if it exists, or give up if it fails
+                    if (resourceFile.isFile())
+                        if (!resourceFile.delete())
+                            return false;
+                }
+            }
+        }
+
+        callback.onUpdate(2, (2f / 4f));
+
         for (String originalName : source.getDefaultResources()) {
             boolean okay;
             final File resourceFile = getUniqueDefaultResourcesFile();
@@ -327,7 +397,7 @@ public class RepoHandler implements Comparable<RepoHandler> {
                 okay = resources.save();
             } else {
                 // We have the original XML available, so clean it up and preserve its structure
-                okay = ResourcesParser.cleanXml(xml, resourceFile);
+                okay = FileUtils.writeFile(resourceFile, xml);
             }
 
             if (okay) {
@@ -342,7 +412,7 @@ public class RepoHandler implements Comparable<RepoHandler> {
             }
         }
 
-        callback.onUpdate(2, (2f / 3f));
+        callback.onUpdate(2, (3f / 4f));
 
         // Check out if we have any icon for this repository
         File icon = source.getIcon();
@@ -360,7 +430,7 @@ public class RepoHandler implements Comparable<RepoHandler> {
         unusedStringsCleanup();
         loadLocales(); // Reload the locales
 
-        callback.onUpdate(2, (3f / 3f));
+        callback.onUpdate(2, (4f / 4f));
 
         return true;
     }
@@ -386,6 +456,11 @@ public class RepoHandler implements Comparable<RepoHandler> {
                 resources.deleteId(remove);
 
             resources.save();
+
+            // Also clean original files
+            for(File original : getTranslatedResourcesFiles(locale)) {
+                ResourcesParser.cleanXml(original, defaultResources);
+            }
         }
     }
 
@@ -410,9 +485,9 @@ public class RepoHandler implements Comparable<RepoHandler> {
 
     // Returns "" if the template wasn't applied successfully (never null)
     // TODO Handle the above case more gracefully, display a toast error maybe
-    public String applyTemplate(final File template, final String locale) {
+    public String applyTemplate(final File template, final File oldFile, final String locale) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        if (applyTemplate(template, locale, out))
+        if (applyTemplate(template, oldFile, locale, out))
             return out.toString();
         else
             return "";
@@ -435,10 +510,10 @@ public class RepoHandler implements Comparable<RepoHandler> {
 
     // TODO Why do I load the resources all the time - can't I just pass the loaded one?
     // Returns TRUE if the template was applied successfully
-    public boolean applyTemplate(final File template, final String locale, final OutputStream out) {
+    public boolean applyTemplate(final File template, final File oldFile, final String locale, final OutputStream out) {
         return hasLocale(locale) &&
                 template.isFile() &&
-                ResourcesParser.applyTemplate(template, loadResources(locale), out);
+                ResourcesParser.applyTemplate(template, oldFile, loadResources(locale), out);
     }
 
     // Never returns null
@@ -454,13 +529,22 @@ public class RepoHandler implements Comparable<RepoHandler> {
         File[] files = getDefaultResourcesFiles();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         HashMap<String, String> paths = settings.getRemotePaths();
+        HashMap<String, String> localePaths = settings.getRemoteLocalePaths(locale);
         for (File template : files) {
             String path = paths.get(template.getName());
+            String name = new File(path).getName();
+            String localPath = localePaths.get(name);
+            File oldFile = null;
+            if (localPath != null) {
+                oldFile = getTranslatedResourcesFile(locale, localPath);
+            } if (!canApplyTemplate(template, locale)) {
+                continue;
+            }
             try {
                 out.write(beforeName.getBytes());
                 out.write((path == null ? template.getName() : path).getBytes());
                 out.write(betweenNameXml.getBytes());
-                applyTemplate(template, locale, out);
+                applyTemplate(template, oldFile, locale, out);
                 out.write(afterXml.getBytes());
             } catch (IOException ignored) {
             }

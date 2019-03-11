@@ -5,12 +5,14 @@ public enum ResType {
     STRING_ARRAY,
     PLURALS,
     ITEM,
+    COMMENT,
     UNKNOWN;
 
     private static final String STRING_VALUE = "string";
     private static final String STRING_ARRAY_VALUE = "string-array";
     private static final String PLURALS_VALUE = "plurals";
     private static final String ITEM_VALUE = "item";
+    private static final String COMMENT_VALUE = "comment";
 
     public static ResType fromTagName(final String name) {
         switch (name) {
@@ -22,6 +24,8 @@ public enum ResType {
                 return PLURALS;
             case ITEM_VALUE:
                 return ITEM;
+            case COMMENT_VALUE:
+                return COMMENT;
             default:
                 return UNKNOWN;
         }
@@ -38,6 +42,8 @@ public enum ResType {
                 return PLURALS_VALUE;
             case ITEM:
                 return ITEM_VALUE;
+            case COMMENT:
+                return COMMENT_VALUE;
             default:
                 return "unknown";
         }

@@ -589,7 +589,9 @@ public class TranslateActivity extends AppCompatActivity implements LocaleSelect
     // This method will only work if there is one template
     private void doExportToSd(Uri uri) {
         try {
-            doExportToSd(uri, mRepo.getDefaultResourcesFiles()[0]);
+            File defaultFile = mRepo.getDefaultResourcesFiles()[0];
+            File oldFile = mRepo.getTranslatedResourcesFile(mSelectedLocale, defaultFile.getName());
+            doExportToSd(uri, defaultFile, oldFile);
             Toast.makeText(this, getString(R.string.export_file_success, uri.getPath()),
                     Toast.LENGTH_SHORT).show();
         } catch (IOException e) {
@@ -607,10 +609,11 @@ public class TranslateActivity extends AppCompatActivity implements LocaleSelect
             DocumentFile pickedDir = DocumentFile.fromTreeUri(this, uri);
             try {
                 for (File template : mRepo.getDefaultResourcesFiles()) {
+                    File oldFile = mRepo.getTranslatedResourcesFile(mSelectedLocale, template.getName());
                     // Do not bother creating a file unless there is some strings for it
                     if (mRepo.canApplyTemplate(template, mSelectedLocale)) {
                         DocumentFile outFile = pickedDir.createFile("text/xml", template.getName());
-                        doExportToSd(outFile.getUri(), template);
+                        doExportToSd(outFile.getUri(), template, oldFile);
                     }
                 }
             } catch (IOException e) {
@@ -624,10 +627,11 @@ public class TranslateActivity extends AppCompatActivity implements LocaleSelect
                     throw new IOException("Could not create the root directory.");
 
                 for (File template : mRepo.getDefaultResourcesFiles()) {
+                    File oldFile = mRepo.getTranslatedResourcesFile(mSelectedLocale, template.getName());
                     // Do not bother creating a file unless there is some strings for it
                     if (mRepo.canApplyTemplate(template, mSelectedLocale)) {
                         File outFile = new File(root, template.getName());
-                        doExportToSd(Uri.fromFile(outFile), template);
+                        doExportToSd(Uri.fromFile(outFile), template, oldFile);
                     }
                 }
             } catch (IOException e) {
@@ -643,12 +647,12 @@ public class TranslateActivity extends AppCompatActivity implements LocaleSelect
         }
     }
 
-    private void doExportToSd(Uri uri, File template)
+    private void doExportToSd(Uri uri, File template, File oldFile)
             throws IOException {
 
         ParcelFileDescriptor pfd = getContentResolver().openFileDescriptor(uri, "w");
         FileOutputStream out = new FileOutputStream(pfd.getFileDescriptor());
-        if (!mRepo.applyTemplate(template, mSelectedLocale, out))
+        if (!mRepo.applyTemplate(template, oldFile, mSelectedLocale, out))
             throw new IOException("Apply default template failed.");
 
         out.close();

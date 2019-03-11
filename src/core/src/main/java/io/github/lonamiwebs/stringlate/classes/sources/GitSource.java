@@ -121,13 +121,21 @@ public class GitSource implements StringsSource {
     }
 
     @Override
-    public Resources getResources(final String locale) {
-        final Resources result = Resources.empty();
-        for (File file : mLocaleFiles.get(locale)) {
-            for (ResTag rt : Resources.fromFile(file))
-                result.addTag(rt);
-        }
+    public List<String> getTranslatedResources(final String locale) {
+        final ArrayList<String> result = new ArrayList<>(mLocaleFiles.get(locale).size());
+        for (File file : mLocaleFiles.get(locale))
+            result.add(getTranslatedResourceName(locale, file));
+
         return result;
+    }
+
+    @Override
+    public Resources getTranslatedResource(final String locale, final String name) {
+        for (File file : mLocaleFiles.get(locale))
+            if (getTranslatedResourceName(locale, file).equals(name))
+                return Resources.fromFile(file);
+
+        throw new IllegalArgumentException("No translated resources were found with that name");
     }
 
     @Override
@@ -149,6 +157,15 @@ public class GitSource implements StringsSource {
     }
 
     @Override
+    public String getTranslatedResourceXml(final String locale, String name) {
+        for (File file : mLocaleFiles.get(locale))
+            if (getTranslatedResourceName(locale, file).equals(name))
+                return FileUtils.readTextFile(file);
+
+        throw new IllegalArgumentException("No XML was found with that name");
+    }
+
+    @Override
     public String getDefaultResourceXml(String name) {
         for (File file : mLocaleFiles.get(null))
             if (getDefaultResourceName(file).equals(name))
@@ -160,6 +177,10 @@ public class GitSource implements StringsSource {
     @Override
     public File getIcon() {
         return iconFile;
+    }
+
+    private String getTranslatedResourceName(final String locale, final File file) {
+        return file.getAbsolutePath().substring(mWorkDir.getAbsolutePath().length() + locale.length() + 2);
     }
 
     private String getDefaultResourceName(final File file) {

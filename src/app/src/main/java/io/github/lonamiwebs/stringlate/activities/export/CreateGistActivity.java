@@ -79,7 +79,8 @@ public class CreateGistActivity extends AppCompatActivity {
         File[] defaultResources = mRepo.getDefaultResourcesFiles();
         if (defaultResources.length > 1) {
             for (File template : defaultResources) {
-                String content = mRepo.applyTemplate(template, mLocale);
+                File oldFile = mRepo.getTranslatedResourcesFile(mLocale, template.getName());
+                String content = mRepo.applyTemplate(template, oldFile, mLocale);
                 if (!content.isEmpty())
                     fileContents.put(template.getName(), content);
             }
@@ -89,8 +90,10 @@ public class CreateGistActivity extends AppCompatActivity {
                 mFilenameEditText.setError(getString(R.string.error_gist_filename_empty));
                 return;
             } else {
+                File template = defaultResources[0];
+                File oldFile = mRepo.getTranslatedResourcesFile(mLocale, template.getName());
                 fileContents.put(filename,
-                        mRepo.applyTemplate(defaultResources[0], mLocale));
+                        mRepo.applyTemplate(template, oldFile, mLocale));
             }
         }
         if (!new ContextUtils(this).isConnectedToInternet(R.string.no_internet_connection))
