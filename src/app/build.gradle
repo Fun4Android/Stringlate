@@ -48,6 +48,9 @@ android {
     lintOptions {
         disable 'MissingTranslation'
         disable 'ExtraTranslation'
+        disable 'StringEscaping'
+        disable 'StringFormatInvalid'
+        disable 'StringFormatMatches'
     }
 
     packagingOptions {
