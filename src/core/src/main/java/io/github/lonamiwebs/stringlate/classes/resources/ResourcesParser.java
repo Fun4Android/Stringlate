@@ -104,8 +104,10 @@ public class ResourcesParser {
                 }
             }
 
-            if (!translatable)
+            if (!translatable) {
+                skip(parser);
                 continue;
+            }
 
             switch (ResType.fromTagName(name)) {
                 case STRING:
