@@ -18,6 +18,7 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -527,6 +528,42 @@ public class ResourcesParser {
         return true;
     }
 
+    // If template is not in the same order as the old xml, applyTemplate doesn't find
+    // all the old translations anymore. Reorder the translation file before applying
+    // the template, according to template order.
+    private static String reorderWithTemplate(String templateXml, String oldXml) {
+        Matcher mResourcesStart = RESOURCES_START.matcher(oldXml);
+        Matcher mResourcesEnd = RESOURCES_END.matcher(oldXml);
+        String start = "<resources>";
+        String end = "</resources>";
+        if (mResourcesStart.find())
+            start = mResourcesStart.group();
+        if (mResourcesEnd.find())
+            end = mResourcesEnd.group();
+
+        HashMap<String, String> idContentMap = new HashMap<>();
+        StringBuilder sb = new StringBuilder();
+
+        Matcher mTemplateTag = RES_TAG_PATTERN.matcher(templateXml);
+        Matcher mTag = RES_TAG_PATTERN.matcher(oldXml);
+
+        sb.append(start);
+        while (mTag.find()) {
+            String id = getAttr(mTag.group(3), ID);
+            // We keep the complete match to preserve formating
+            idContentMap.put(id, mTag.group());
+        }
+        while (mTemplateTag.find()) {
+            String id = getAttr(mTemplateTag.group(3), ID);
+            String content = idContentMap.get(id);
+            if (content != null)
+                sb.append(content);
+        }
+        sb.append(end);
+
+        return sb.toString();
+    }
+
     // Returns TRUE if the template was applied successfully
     public static boolean applyTemplate(File template, File oldFile, Resources resources, OutputStream out) {
         // Load resources from the template, so we know what to translate.
@@ -562,8 +599,8 @@ public class ResourcesParser {
         } catch (Exception ignored) {
         }
 
-        Matcher mResourcesStart = RESOURCES_START.matcher(xml);
-        Matcher mResourcesEnd = RESOURCES_END.matcher(xml);
+        Matcher mResourcesStart = RESOURCES_START.matcher(oldXml);
+        Matcher mResourcesEnd = RESOURCES_END.matcher(oldXml);
         String start = "<resources>";
         String end = "</resources>";
         if (mResourcesStart.find())
@@ -580,6 +617,8 @@ public class ResourcesParser {
         oldXml = oldXml.replaceAll("<!--.*?-->", stringlateCommentArtifact);
 
         StringBuilder sb = new StringBuilder();
+
+        oldXml = reorderWithTemplate(templateXml, oldXml);
 
         Matcher mTemplateTag = RES_TAG_PATTERN.matcher(templateXml);
         Matcher mTag = RES_TAG_PATTERN.matcher(oldXml);
